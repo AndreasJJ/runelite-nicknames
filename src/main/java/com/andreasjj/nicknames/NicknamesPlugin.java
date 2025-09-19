@@ -188,7 +188,7 @@ public class NicknamesPlugin extends Plugin
             final String rsn = (String) objectStack[objectStackSize - 1];
             final String sanitized = Text.toJagexName(Text.removeTags(rsn));
             if (getNickname(sanitized) != null) {
-                objectStack[objectStackSize - 1] = String.format("%s (%s)", getNickname(sanitized), rsn);
+                objectStack[objectStackSize - 1] = getNickname(sanitized);
             }
         }
     }

@@ -35,8 +35,8 @@ class NicknamesOverlay extends Overlay
 
         if (hovered != null) // Will always have a nickname if non-null
         {
-            final String content = hovered.getNickname();
-            tooltipManager.add(new Tooltip(String.format("Nickname: %s", content)));
+            final String content = hovered.getFriendName();
+            tooltipManager.add(new Tooltip(String.format("Name: %s", content)));
         }
 
         return null;

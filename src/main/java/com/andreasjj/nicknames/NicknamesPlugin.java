@@ -4,6 +4,7 @@ import com.google.inject.Provides;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import lombok.Getter;
+import java.awt.image.BufferedImage;
 import net.runelite.api.Client;
 import net.runelite.api.MenuAction;
 import net.runelite.api.GameState;
@@ -14,12 +15,14 @@ import net.runelite.api.widgets.WidgetUtil;
 import net.runelite.api.ScriptID;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.game.chatbox.ChatboxPanelManager;
+import net.runelite.client.game.ChatIconManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.util.Text;
+import net.runelite.client.util.ImageUtil;
 import net.runelite.client.events.ConfigChanged;
 import com.google.common.base.Strings;
 import javax.annotation.Nullable;
@@ -37,6 +40,8 @@ public class NicknamesPlugin extends Plugin
     private static final String ADD_NICKNAME = "Add Nickname";
     private static final String EDIT_NICKNAME = "Edit Nickname";
     private static final int CHARACTER_LIMIT = 12;
+    private static final int ICON_WIDTH = 14;
+    private static final int ICON_HEIGHT = 12;
     private static final String NICKNAME_PROMPT_FORMAT = "%s's Nicknames<br>" +
             ColorUtil.prependColorTag("(Limit %s Characters)", new Color(0, 0, 170));
 
@@ -56,6 +61,9 @@ public class NicknamesPlugin extends Plugin
     private ChatboxPanelManager chatboxPanelManager;
 
     @Inject
+    private ChatIconManager chatIconManager;
+
+    @Inject
     private NicknamesOverlay overlay;
 
     @Inject
@@ -64,17 +72,31 @@ public class NicknamesPlugin extends Plugin
     @Getter
     private HoveredPlayerName hoveredPlayerName = null;
 
-	@Override
-	protected void startUp() throws Exception
-	{
-        overlayManager.add(overlay);
-	}
+    private int iconId = -1;
+    private String currentlyLayouting;
 
-	@Override
-	protected void shutDown() throws Exception
-	{
+    @Override
+    protected void startUp() throws Exception
+    {
+        overlayManager.add(overlay);
+        loadIcon();
+        if (client.getGameState() == GameState.LOGGED_IN)
+        {
+            rebuildFriendsList();
+            rebuildIgnoreList();
+        }
+    }
+
+    @Override
+    protected void shutDown() throws Exception
+    {
         overlayManager.remove(overlay);
-	}
+        if (client.getGameState() == GameState.LOGGED_IN)
+        {
+            rebuildFriendsList();
+            rebuildIgnoreList();
+        }
+    }
 
     @Subscribe
     public void onConfigChanged(ConfigChanged event)
@@ -182,14 +204,30 @@ public class NicknamesPlugin extends Plugin
     @Subscribe
     public void onScriptCallbackEvent(ScriptCallbackEvent event)
     {
-        if (event.getEventName().equals("friendsChatSetText")) {
-            Object[] objectStack = client.getObjectStack();
-            int objectStackSize = client.getObjectStackSize();
-            final String rsn = (String) objectStack[objectStackSize - 1];
-            final String sanitized = Text.toJagexName(Text.removeTags(rsn));
-            if (getNickname(sanitized) != null) {
-                objectStack[objectStackSize - 1] = getNickname(sanitized);
-            }
+        switch (event.getEventName())
+        {
+            case "friendsChatSetText":
+                Object[] objectStack = client.getObjectStack();
+                int objectStackSize = client.getObjectStackSize();
+                final String rsn = (String) objectStack[objectStackSize - 1];
+                final String sanitized = Text.toJagexName(Text.removeTags(rsn));
+                currentlyLayouting = sanitized;
+                if (getNickname(sanitized) != null) {
+                    objectStack[objectStackSize - 1] = getNickname(sanitized) + " <img=" + chatIconManager.chatIconIndex(iconId) + ">";
+                }
+                break;
+            case "friendsChatSetPosition":
+                if (currentlyLayouting == null || getNickname(currentlyLayouting) == null)
+                {
+                    return;
+                }
+
+                int[] intStack = client.getIntStack();
+                int intStackSize = client.getIntStackSize();
+                int xpos = intStack[intStackSize - 4];
+                xpos += ICON_WIDTH + 1;
+                intStack[intStackSize - 4] = xpos;
+                break;
         }
     }
 
@@ -229,5 +267,22 @@ public class NicknamesPlugin extends Plugin
                     InterfaceID.Ignore.TOOLTIP
             );
         });
+    }
+
+    private void loadIcon()
+    {
+        if (iconId != -1)
+        {
+            return;
+        }
+
+        final BufferedImage iconImg = ImageUtil.loadImageResource(getClass(), "nickname_icon.png");
+        if (iconImg == null)
+        {
+            throw new RuntimeException("unable to load icon");
+        }
+
+        final BufferedImage resized = ImageUtil.resizeImage(iconImg, ICON_WIDTH, ICON_HEIGHT);
+        iconId = chatIconManager.registerChatIcon(resized);
     }
 }

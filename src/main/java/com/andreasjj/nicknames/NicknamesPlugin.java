@@ -4,11 +4,9 @@ import com.google.inject.Provides;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import lombok.Getter;
-import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.MenuAction;
 import net.runelite.api.GameState;
-import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.MenuEntryAdded;
 import net.runelite.api.events.ScriptCallbackEvent;
 import net.runelite.api.gameval.InterfaceID;
@@ -23,8 +21,6 @@ import net.runelite.client.callback.ClientThread;
 import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.util.Text;
 import net.runelite.client.events.ConfigChanged;
-import net.runelite.api.widgets.Widget;
-import net.runelite.api.widgets.WidgetInfo;
 import com.google.common.base.Strings;
 import javax.annotation.Nullable;
 import net.runelite.client.util.ColorUtil;
@@ -68,29 +64,16 @@ public class NicknamesPlugin extends Plugin
     @Getter
     private HoveredPlayerName hoveredPlayerName = null;
 
-    private String currentlyLayouting;
-
 	@Override
 	protected void startUp() throws Exception
 	{
-		log.info("Example started!");
         overlayManager.add(overlay);
 	}
 
 	@Override
 	protected void shutDown() throws Exception
 	{
-		log.info("Example stopped!");
         overlayManager.remove(overlay);
-	}
-
-	@Subscribe
-	public void onGameStateChanged(GameStateChanged gameStateChanged)
-	{
-		if (gameStateChanged.getGameState() == GameState.LOGGED_IN)
-		{
-			client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", "Example says " + config.greeting(), null);
-		}
 	}
 
     @Subscribe
@@ -101,15 +84,11 @@ public class NicknamesPlugin extends Plugin
             return;
         }
 
-        switch (event.getKey())
-        {
-            case "showIcons":
-                if (client.getGameState() == GameState.LOGGED_IN)
-                {
-                    rebuildFriendsList();
-                    rebuildIgnoreList();
-                }
-                break;
+        if (event.getKey().equals("showIcons")) {
+            if (client.getGameState() == GameState.LOGGED_IN) {
+                rebuildFriendsList();
+                rebuildIgnoreList();
+            }
         }
     }
 
@@ -161,7 +140,6 @@ public class NicknamesPlugin extends Plugin
     {
         final int groupId = WidgetUtil.componentToInterface(event.getActionParam1());
 
-        // Look for "Message" on friends list
         if ((groupId == InterfaceID.FRIENDS && event.getOption().equals("Message")) ||
                 (groupId == InterfaceID.IGNORE && event.getOption().equals("Delete")))
         {
@@ -169,7 +147,7 @@ public class NicknamesPlugin extends Plugin
             setHoveredFriend(Text.toJagexName(Text.removeTags(event.getTarget())));
 
             // Build "Add Nickname" or "Edit Nickname" menu entry
-            client.createMenuEntry(-1)
+            client.getMenu().createMenuEntry(-1)
                     .setOption(hoveredPlayerName == null || hoveredPlayerName.getNickname() == null ? ADD_NICKNAME : EDIT_NICKNAME)
                     .setType(MenuAction.RUNELITE)
                     .setTarget(event.getTarget()) //Preserve color codes here
@@ -209,7 +187,6 @@ public class NicknamesPlugin extends Plugin
             int objectStackSize = client.getObjectStackSize();
             final String rsn = (String) objectStack[objectStackSize - 1];
             final String sanitized = Text.toJagexName(Text.removeTags(rsn));
-            currentlyLayouting = sanitized;
             if (getNickname(sanitized) != null) {
                 objectStack[objectStackSize - 1] = String.format("%s (%s)", getNickname(sanitized), rsn);
             }
